@@ -21,11 +21,12 @@ class LayerAccessibilityService : AccessibilityService() {
     companion object {
         var sourceLang = "en"
         var targetLang = "fr"
+        val translationCache = mutableMapOf<String, String>()
     }
 
     private lateinit var windowManager: WindowManager
     private var activeOverlays = mutableListOf<View>()
-    private var cachedOverlays = mutableMapOf<String, View>()
+    private var seenBlocks = mutableMapOf<String, View>()
     private var translator: Translator? = null
     private var lastPackage = ""
     private var debounceRunnable: Runnable? = null
@@ -46,21 +47,21 @@ class LayerAccessibilityService : AccessibilityService() {
         debounceRunnable = Runnable {
             processScreen(pkg)
         }
-        handler.postDelayed(debounceRunnable!!, 200)
+        handler.postDelayed(debounceRunnable!!, 150)
     }
 
     private fun processScreen(pkg: String) {
         lastPackage = pkg
 
         removeAllOverlays()
-        cachedOverlays.clear()
+        seenBlocks.clear()
 
         val rootNode = rootInActiveWindow ?: return
         val textBlocks = mutableListOf<Pair<String, Rect>>()
         collectTextBlocks(rootNode, textBlocks)
 
         for ((text, bounds) in textBlocks) {
-            translateAndShowOverlay(text, bounds)
+            showTranslatedOverlay(text, bounds)
         }
     }
 
@@ -83,21 +84,31 @@ class LayerAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun translateAndShowOverlay(text: String, bounds: Rect) {
-        val key = "$text:${bounds.left},${bounds.top}"
-        if (cachedOverlays.containsKey(key)) return
+    private fun showTranslatedOverlay(text: String, bounds: Rect) {
+        val cacheKey = "$sourceLang:$targetLang:$text"
+        val blockKey = "$text:${bounds.left},${bounds.top}"
+
+        if (seenBlocks.containsKey(blockKey)) return
+        seenBlocks[blockKey] = null as View?
+
+        val cached = translationCache[cacheKey]
+        if (cached != null) {
+            drawOverlay(cached, bounds, blockKey)
+            return
+        }
 
         getOrCreateTranslator().translate(text)
             .addOnSuccessListener { translated ->
-                showOverlay(translated, bounds, key)
+                translationCache[cacheKey] = translated
+                drawOverlay(translated, bounds, blockKey)
             }
             .addOnFailureListener {
-                showOverlay(text, bounds, key)
+                drawOverlay(text, bounds, blockKey)
             }
     }
 
-    private fun showOverlay(text: String, bounds: Rect, cacheKey: String) {
-        if (cachedOverlays.containsKey(cacheKey)) return
+    private fun drawOverlay(text: String, bounds: Rect, blockKey: String) {
+        if (seenBlocks[blockKey] != null) return
 
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -107,8 +118,8 @@ class LayerAccessibilityService : AccessibilityService() {
         }
 
         val params = WindowManager.LayoutParams(
-            bounds.width(),
-            bounds.height(),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             layoutType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
@@ -131,7 +142,7 @@ class LayerAccessibilityService : AccessibilityService() {
         try {
             windowManager.addView(overlay, params)
             activeOverlays.add(overlay)
-            cachedOverlays[cacheKey] = overlay
+            seenBlocks[blockKey] = overlay
         } catch (_: Exception) {}
     }
 
@@ -162,7 +173,7 @@ class LayerAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         debounceRunnable?.let { handler.removeCallbacks(it) }
         removeAllOverlays()
-        cachedOverlays.clear()
+        seenBlocks.clear()
         translator?.close()
         super.onDestroy()
     }

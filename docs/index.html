@@ -3,7 +3,7 @@
 <head> 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LocalLayer - On-Device Translation</title>
+  <title>LocalLayer - Screen Overlay Translation</title>
   <style>
     :root {
       --bg: #ffffff;
@@ -91,7 +91,7 @@
     <div class="header">
       <img src="icon.svg" alt="LocalLayer Logo">
       <h1>LocalLayer</h1>
-      <p>On-device text translation powered by ML Kit</p>
+      <p>Screen overlay translation powered by ML Kit</p>
       <div class="badges">
         <span class="badge">📱 Jetpack Compose</span>
         <span class="badge">🎨 Material 3</span>
@@ -110,12 +110,12 @@
         <p>All translation runs on-device via ML Kit. No internet connection required after model download.</p>
       </div>
       <div class="feature">
-        <h3>⚡ Instant Swap</h3>
-        <p>Swap source and target languages instantly. Type, translate, and copy with a single tap.</p>
+        <h3>🖼️ Screen Overlay</h3>
+        <p>Reads text from any app via Accessibility Service and shows translations as overlays at the original text position.</p>
       </div>
       <div class="feature">
-        <h3>📋 One-Tap Copy</h3>
-        <p>Copy translated text to clipboard with haptic feedback. Share results anywhere.</p>
+        <h3>⚡ Auto Translate</h3>
+        <p>No typing needed. Select languages, grant permissions, and translations appear automatically on screen.</p>
       </div>
       <div class="feature">
         <h3>📦 Auto Model Download</h3>
@@ -150,6 +150,8 @@
       <tr><td>UI Framework</td><td>Jetpack Compose with Material Design 3</td></tr>
       <tr><td>Theming</td><td>Dynamic Color (Material You)</td></tr>
       <tr><td>Architecture</td><td>Single Activity + ViewModel + StateFlow</td></tr>
+      <tr><td>Screen Reading</td><td>AccessibilityService + AccessibilityNodeInfo</td></tr>
+      <tr><td>Overlay Rendering</td><td>WindowManager with TYPE_APPLICATION_OVERLAY</td></tr>
       <tr><td>Translation Engine</td><td>ML Kit Translate API 17.0.3</td></tr>
       <tr><td>Min SDK</td><td>API 26 (Android 8.0)</td></tr>
       <tr><td>Target SDK</td><td>API 35 (Android 15)</td></tr>

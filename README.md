@@ -1,9 +1,9 @@
 <div align="center">
   <img src="docs/icon.svg" width="80" alt="LocalLayer Logo">
   <h1>LocalLayer</h1>
-  <p><strong>On-device text translation · Powered by ML Kit</strong></p>
+  <p><strong>Screen overlay translation · Powered by ML Kit</strong></p>
   <p>
-    <a href="#features"><img src="https://img.shields.io/badge/🌐%20Translate-ML%20Kit-7C4DFF?style=flat-square" alt="Translate"></a>
+    <a href="#features"><img src="https://img.shields.io/badge/🌐%20Overlay%20Translate-ML%20Kit-7C4DFF?style=flat-square" alt="Translate"></a>
     <a href="#tech-stack"><img src="https://img.shields.io/badge/📱%20Platform-Android-34A853?style=flat-square" alt="Platform"></a>
     <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?style=flat-square&logo=kotlin" alt="Kotlin"></a>
     <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Compose-Material%203-4285F4?style=flat-square" alt="Compose"></a>
@@ -14,7 +14,7 @@
 
 ---
 
-**LocalLayer** is a fully offline, on-device translation app for Android that uses **ML Kit Translate API** to translate text between 30+ languages — no cloud calls, no API keys, no internet required. Every translation stays on your device.
+**LocalLayer** is an on-device screen overlay translation app for Android. It reads text from any app on your screen using the Accessibility Service, translates it with **ML Kit Translate API**, and displays the translation directly on top of the original text — no typing, no switching apps, no internet required.
 
 ---
 
@@ -26,16 +26,13 @@
 - **🎨 Material Design 3** — Modern UI with dynamic color (Material You) support.
 - **📱 Jetpack Compose** — Declarative, reactive UI built entirely with Compose.
 - **⬇️ Auto Model Download** — Language models download automatically on first use (≈30MB per pair).
+- **🖼️ Screen Overlay** — Translated text appears as an overlay at the exact position of the original text.
 - **⚡ Instant Swap** — Swap source and target languages with one tap.
-- **📋 One-Tap Copy** — Copy translated text to clipboard with haptic feedback.
-- **🌙 Dark Mode** — Automatic theme switching based on system settings.
 - **🆓 Free & Open Source** — No subscriptions, no API costs, forever.
 
 ## 🖼️ Screenshots
 
-| Language Setup | Main Screen | Translation Result |
-|:---:|:---:|:---:|
-| ![Language Setup](docs/Screenshot_1782201885.png) | ![Main Screen](docs/Screenshot_1782201890.png) | ![Translation Result](docs/Screenshot_1782201894.png) |
+*(Coming soon)*
 
 ## 🛠️ Tech Stack
 
@@ -45,6 +42,8 @@
 | **UI Framework** | [Jetpack Compose](https://developer.android.com/jetpack/compose) with Material Design 3 |
 | **Theming** | Dynamic Color (Material You) via `MaterialTheme.colorScheme` |
 | **Architecture** | Single Activity + `ViewModel` + `StateFlow` |
+| **Screen Reading** | Android `AccessibilityService` + `AccessibilityNodeInfo` |
+| **Overlay Rendering** | `WindowManager` with `TYPE_APPLICATION_OVERLAY` |
 | **Translation Engine** | [ML Kit Translate API](https://developers.google.com/ml-kit/language/translation/android) `17.0.3` |
 | **On-Device Model** | ML Kit language packs (≈30MB per language pair) |
 | **Min SDK** | API 26 (Android 8.0) |
@@ -79,31 +78,41 @@ The APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
 
 1. Open **LocalLayer** on your device.
 2. Select your source and target languages using the dropdowns.
-3. Type or paste text in the input field.
-4. Tap **Translate** — the language model downloads automatically on first use.
-5. View the translation result and tap the copy icon to copy it to your clipboard.
-6. Use the swap button (↔) to quickly reverse the language direction.
+3. Grant the **Display over other apps** permission when prompted.
+4. Enable the **LocalLayer Overlay** accessibility service in your device's Accessibility Settings.
+5. Open any app with text — LocalLayer automatically reads the screen, translates detected text, and shows the translation as an overlay on top of the original content.
 
 ## 🤖 How It Works
 
 ```
-┌───────────────────────────────────────────────────┐
-│                   Your Android Device               │
-│                                                     │
-│  ┌──────────────┐     ┌─────────────────────────┐  │
-│  │ LocalLayer│────▶│  ML Kit Translate API    │  │
-│  │ (Compose UI)  │◀────│  (com.google.mlkit)     │  │
-│  └──────────────┘     └──────────┬──────────────┘  │
-│                                  │                  │
-│                         ┌────────▼─────────────┐   │
-│                         │  Language Packs       │   │
-│                         │  (English, French,    │   │
-│                         │   German, Japanese,   │   │
-│                         │   Hindi, ...)         │   │
-│                         └──────────────────────┘   │
-│                                                     │
-│  ──── No Internet · No API Calls · No Cloud ────   │
-└───────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                   Your Android Device                     │
+│                                                           │
+│  ┌──────────────┐     ┌───────────────┐                  │
+│  │  Any App     │     │  LocalLayer    │                  │
+│  │  with text   │────▶│  Accessibility │                 │
+│  │              │     │  Service       │                  │
+│  └──────────────┘     └───────┬───────┘                  │
+│                               │                           │
+│                               ▼                           │
+│  ┌─────────────────────────────────────┐                 │
+│  │  Collect text nodes + bounds (Rect)  │                 │
+│  └──────────────┬──────────────────────┘                 │
+│                 │                                         │
+│                 ▼                                         │
+│  ┌──────────────────────┐     ┌──────────────────────┐   │
+│  │  ML Kit Translate API │────▶│  Translation Cache    │   │
+│  │  (com.google.mlkit)   │     │  (avoids re-translate) │   │
+│  └──────────┬───────────┘     └──────────────────────┘   │
+│             │                                             │
+│             ▼                                             │
+│  ┌──────────────────────────────────────┐                │
+│  │  WindowManager Overlay (TextView)     │                │
+│  │  positioned at original text bounds   │                │
+│  └──────────────────────────────────────┘                │
+│                                                           │
+│  ──── No Internet · No API Calls · No Cloud ──────────   │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ## 📱 Supported Languages
@@ -136,21 +145,22 @@ locallayer/
 ├── app/
 │   ├── src/main/
 │   │   ├── java/com/locallayer/app/
-│   │   │   ├── MainActivity.kt          # Compose UI — language selectors, input, result
-│   │   │   ├── TranslateViewModel.kt    # ML Kit translation, model download, state
+│   │   │   ├── MainActivity.kt              # Compose UI — lang selectors, permissions, status
+│   │   │   ├── TranslateViewModel.kt        # Auto model download, language state
+│   │   │   ├── LayerAccessibilityService.kt # Screen reader + overlay renderer
 │   │   │   └── ui/theme/
-│   │   │       ├── Theme.kt             # Material 3 theme (light/dark/dynamic)
-│   │   │       ├── Color.kt             # Custom color definitions
-│   │   │       └── Type.kt              # Typography scale
+│   │   │       ├── Theme.kt                 # Material 3 theme (light/dark/dynamic)
+│   │   │       ├── Color.kt                 # Custom color definitions
+│   │   │       └── Type.kt                  # Typography scale
 │   │   ├── AndroidManifest.xml
 │   │   └── res/
 │   ├── build.gradle.kts
 │   └── proguard-rules.pro
 ├── docs/
-│   └── index.html                       # Project landing page
+│   └── index.html                           # Project landing page
 ├── .github/workflows/
-│   └── release.yml                      # CI/CD pipeline for APK
-├── build.gradle.kts                     # Root build config
+│   └── release.yml                          # CI/CD pipeline for APK
+├── build.gradle.kts                         # Root build config
 ├── settings.gradle.kts
 ├── gradle.properties
 └── README.md
