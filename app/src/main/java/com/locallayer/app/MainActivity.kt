@@ -97,15 +97,9 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
             Settings.canDrawOverlays(context) else true
     }
 
-    var volumeKeyMode by remember { mutableStateOf(false) }
-
     LaunchedEffect(state.sourceLanguage.code, state.targetLanguage.code) {
         LayerAccessibilityService.sourceLang = state.sourceLanguage.code
         LayerAccessibilityService.targetLang = state.targetLanguage.code
-    }
-
-    LaunchedEffect(volumeKeyMode) {
-        LayerAccessibilityService.mode = if (volumeKeyMode) OverlayMode.VOLUME_KEY else OverlayMode.LIVE
     }
 
     if (setupStep == SetupStep.SELECT_SOURCE) {
@@ -208,11 +202,6 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
                     }
                 )
 
-                ModeCard(
-                    volumeKeyMode = volumeKeyMode,
-                    onToggleMode = { volumeKeyMode = it }
-                )
-
                 StatusCard(
                     modelsReady = state.modelsReady,
                     isDownloading = state.isModelDownloading
@@ -291,44 +280,6 @@ fun PermissionRow(
             checked = granted,
             onCheckedChange = { onClick() }
         )
-    }
-}
-
-@Composable
-fun ModeCard(
-    volumeKeyMode: Boolean,
-    onToggleMode: (Boolean) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Mode",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = if (volumeKeyMode) "Volume Key" else "Live",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Switch(
-                    checked = volumeKeyMode,
-                    onCheckedChange = onToggleMode
-                )
-            }
-        }
     }
 }
 

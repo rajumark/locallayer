@@ -8,7 +8,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
-import android.view.KeyEvent
+
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
@@ -18,14 +18,11 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 
-enum class OverlayMode { LIVE, VOLUME_KEY }
-
 class LayerAccessibilityService : AccessibilityService() {
 
     companion object {
         var sourceLang = "en"
         var targetLang = "fr"
-        var mode = OverlayMode.LIVE
         val translationCache = mutableMapOf<String, String>()
     }
 
@@ -36,52 +33,14 @@ class LayerAccessibilityService : AccessibilityService() {
     private var lastPackage = ""
     private var debounceRunnable: Runnable? = null
     private val handler = Handler(Looper.getMainLooper())
-    private var hideOverlaysRunnable: Runnable? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-
-        val info = serviceInfo
-        info.flags = info.flags or AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
-        serviceInfo = info
-    }
-
-    override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (mode == OverlayMode.VOLUME_KEY && event.action == KeyEvent.ACTION_DOWN) {
-            if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-                showOneshotOverlay()
-                return true
-            }
-        }
-        return super.onKeyEvent(event)
-    }
-
-    private fun showOneshotOverlay() {
-        hideOverlaysRunnable?.let { handler.removeCallbacks(it) }
-
-        val rootNode = rootInActiveWindow ?: return
-        pendingKeys.clear()
-        val textBlocks = mutableListOf<Pair<String, Rect>>()
-        collectTextBlocks(rootNode, textBlocks)
-
-        for ((text, bounds) in textBlocks) {
-            showTranslatedOverlay(text, bounds)
-        }
-
-        hideOverlaysRunnable = Runnable {
-            removeAllOverlays()
-            pendingKeys.clear()
-        }
-        handler.postDelayed(hideOverlaysRunnable!!, 3000)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (mode != OverlayMode.LIVE) return
         if (sourceLang == targetLang) return
-
-        hideOverlaysRunnable?.let { handler.removeCallbacks(it) }
-        hideOverlaysRunnable = null
 
         val pkg = event.packageName?.toString() ?: return
         if (pkg.contains("locallayer")) return
@@ -211,7 +170,6 @@ class LayerAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         debounceRunnable?.let { handler.removeCallbacks(it) }
-        hideOverlaysRunnable?.let { handler.removeCallbacks(it) }
         removeAllOverlays()
         pendingKeys.clear()
         translator?.close()
