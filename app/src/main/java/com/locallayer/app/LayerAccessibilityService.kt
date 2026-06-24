@@ -1,14 +1,12 @@
 package com.locallayer.app
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.graphics.Color
 import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
-
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
@@ -29,18 +27,14 @@ class LayerAccessibilityService : AccessibilityService() {
         private var _service: LayerAccessibilityService? = null
 
         fun clearOverlays() {
-            _service?.let { s ->
-                s.removeAllOverlays()
-                s.pendingKeys.clear()
-            }
+            _service?.removeAllOverlays()
         }
     }
 
     private lateinit var windowManager: WindowManager
-    private var activeOverlays = mutableListOf<View>()
-    private var pendingKeys = mutableSetOf<String>()
+    private var overlayMap = mutableMapOf<String, View>()
+    private var pendingTranslations = mutableSetOf<String>()
     private var translator: Translator? = null
-    private var lastPackage = ""
     private var debounceRunnable: Runnable? = null
     private val handler = Handler(Looper.getMainLooper())
 
@@ -56,39 +50,46 @@ class LayerAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         if (pkg.contains("locallayer")) {
             removeAllOverlays()
-            pendingKeys.clear()
             return
         }
 
         debounceRunnable?.let { handler.removeCallbacks(it) }
         debounceRunnable = Runnable {
-            processScreen(pkg)
+            processScreen()
         }
         handler.postDelayed(debounceRunnable!!, 150)
     }
 
-    private fun processScreen(pkg: String) {
-        lastPackage = pkg
-
+    private fun processScreen() {
         val rootNode = rootInActiveWindow ?: return
         val rootPkg = rootNode.packageName?.toString() ?: ""
         if (rootPkg.contains("locallayer")) {
             removeAllOverlays()
-            pendingKeys.clear()
             return
         }
 
         val textBlocks = mutableListOf<Pair<String, Rect>>()
         collectTextBlocks(rootNode, textBlocks)
 
-        if (textBlocks.isEmpty() && activeOverlays.isNotEmpty()) return
-
-        removeAllOverlays()
-        pendingKeys.clear()
+        val currentKeys = mutableSetOf<String>()
 
         for ((text, bounds) in textBlocks) {
-            showTranslatedOverlay(text, bounds)
+            val blockKey = "$text:${bounds.left},${bounds.top}"
+            currentKeys.add(blockKey)
+
+            if (blockKey in overlayMap) continue
+
+            showTranslatedOverlay(text, bounds, blockKey)
         }
+
+        val toRemove = overlayMap.keys.filter { it !in currentKeys }
+        for (key in toRemove) {
+            overlayMap[key]?.let { view ->
+                try { windowManager.removeView(view) } catch (_: Exception) {}
+            }
+            overlayMap.remove(key)
+        }
+        pendingTranslations.retainAll(currentKeys)
     }
 
     private fun collectTextBlocks(node: AccessibilityNodeInfo?, result: MutableList<Pair<String, Rect>>) {
@@ -108,13 +109,11 @@ class LayerAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun showTranslatedOverlay(text: String, bounds: Rect) {
+    private fun showTranslatedOverlay(text: String, bounds: Rect, blockKey: String) {
+        if (blockKey in pendingTranslations) return
+        pendingTranslations.add(blockKey)
+
         val cacheKey = "$sourceLang:$targetLang:$text"
-        val blockKey = "$text:${bounds.left},${bounds.top}"
-
-        if (blockKey in pendingKeys) return
-        pendingKeys.add(blockKey)
-
         val cached = translationCache[cacheKey]
         if (cached != null) {
             drawOverlay(cached, bounds, blockKey)
@@ -132,7 +131,7 @@ class LayerAccessibilityService : AccessibilityService() {
     }
 
     private fun drawOverlay(text: String, bounds: Rect, blockKey: String) {
-        if (blockKey !in pendingKeys) return
+        if (blockKey in overlayMap) return
 
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -165,18 +164,20 @@ class LayerAccessibilityService : AccessibilityService() {
 
         try {
             windowManager.addView(overlay, params)
-            activeOverlays.add(overlay)
+            overlayMap[blockKey] = overlay
         } catch (_: Exception) {}
     }
 
     private fun removeAllOverlays() {
-        val iterator = activeOverlays.iterator()
+        val iterator = overlayMap.values.iterator()
         while (iterator.hasNext()) {
             try {
                 windowManager.removeView(iterator.next())
             } catch (_: Exception) {}
             iterator.remove()
         }
+        overlayMap.clear()
+        pendingTranslations.clear()
     }
 
     private fun getOrCreateTranslator(): Translator {
@@ -196,7 +197,6 @@ class LayerAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         debounceRunnable?.let { handler.removeCallbacks(it) }
         removeAllOverlays()
-        pendingKeys.clear()
         translator?.close()
         _service = null
         super.onDestroy()
