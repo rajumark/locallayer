@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head> 
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalLayer - On-Device Translation</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1a1a2e;
+      --muted: #666;
+      --card: #f5f3ff;
+      --border: #e8e6f0;
+      --primary: #7C4DFF;
+      --primary-hover: #6a3de6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d001a;
+        --text: #e8e0f0;
+        --muted: #999;
+        --card: #1a0033;
+        --border: #2d0052;
+        --primary: #B388FF;
+        --primary-hover: #c4a0ff;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    .header { text-align: center; margin-bottom: 48px; }
+    .header img { width: 80px; margin-bottom: 16px; }
+    .header h1 { font-size: 2.2rem; font-weight: 700; }
+    .header p { color: var(--muted); font-size: 1.1rem; margin-top: 8px; }
+    .badges { margin-top: 16px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+    .feature {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .feature h3 { font-size: 1.1rem; margin-bottom: 8px; }
+    .feature p { color: var(--muted); font-size: 0.9rem; }
+    h2 { font-size: 1.5rem; margin-bottom: 16px; margin-top: 32px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+    th, td {
+      text-align: left;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    th { font-weight: 600; }
+    code {
+      background: var(--card);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 32px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 48px;
+    }
+    a { color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="icon.svg" alt="LocalLayer Logo">
+      <h1>LocalLayer</h1>
+      <p>On-device text translation powered by ML Kit</p>
+      <div class="badges">
+        <span class="badge">📱 Jetpack Compose</span>
+        <span class="badge">🎨 Material 3</span>
+        <span class="badge">🧠 ML Kit Translate</span>
+        <span class="badge">🔒 100% Offline</span>
+      </div>
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <h3>🌐 30+ Languages</h3>
+        <p>Translate between English, French, German, Japanese, Hindi, Arabic, and many more.</p>
+      </div>
+      <div class="feature">
+        <h3>📴 Fully Offline</h3>
+        <p>All translation runs on-device via ML Kit. No internet connection required after model download.</p>
+      </div>
+      <div class="feature">
+        <h3>⚡ Instant Swap</h3>
+        <p>Swap source and target languages instantly. Type, translate, and copy with a single tap.</p>
+      </div>
+      <div class="feature">
+        <h3>📋 One-Tap Copy</h3>
+        <p>Copy translated text to clipboard with haptic feedback. Share results anywhere.</p>
+      </div>
+      <div class="feature">
+        <h3>📦 Auto Model Download</h3>
+        <p>Language models download automatically on first use. Wi-Fi recommended (≈30MB per pair).</p>
+      </div>
+      <div class="feature">
+        <h3>🎨 Material Design 3</h3>
+        <p>Modern UI with dynamic color (Material You). Adapts to light and dark themes.</p>
+      </div>
+    </div>
+
+    <h2>Screenshots</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px;">
+      <div style="background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; text-align: center; padding: 8px;">
+        <img src="Screenshot_1782201885.png" alt="Language Setup" style="width: 100%; max-width: 280px; border-radius: 12px; display: block; margin: 0 auto;">
+        <p style="color: var(--muted); font-size: 0.85rem; margin-top: 8px;">Language Setup</p>
+      </div>
+      <div style="background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; text-align: center; padding: 8px;">
+        <img src="Screenshot_1782201890.png" alt="Main Screen" style="width: 100%; max-width: 280px; border-radius: 12px; display: block; margin: 0 auto;">
+        <p style="color: var(--muted); font-size: 0.85rem; margin-top: 8px;">Main Screen</p>
+      </div>
+      <div style="background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; text-align: center; padding: 8px;">
+        <img src="Screenshot_1782201894.png" alt="Translation Result" style="width: 100%; max-width: 280px; border-radius: 12px; display: block; margin: 0 auto;">
+        <p style="color: var(--muted); font-size: 0.85rem; margin-top: 8px;">Translation Result</p>
+      </div>
+    </div>
+
+    <h2>Tech Stack</h2>
+    <table>
+      <tr><th>Layer</th><th>Technology</th></tr>
+      <tr><td>Language</td><td>Kotlin 2.0.21</td></tr>
+      <tr><td>UI Framework</td><td>Jetpack Compose with Material Design 3</td></tr>
+      <tr><td>Theming</td><td>Dynamic Color (Material You)</td></tr>
+      <tr><td>Architecture</td><td>Single Activity + ViewModel + StateFlow</td></tr>
+      <tr><td>Translation Engine</td><td>ML Kit Translate API 17.0.3</td></tr>
+      <tr><td>Min SDK</td><td>API 26 (Android 8.0)</td></tr>
+      <tr><td>Target SDK</td><td>API 35 (Android 15)</td></tr>
+      <tr><td>Build System</td><td>Gradle 8.9 + AGP 8.7.3</td></tr>
+      <tr><td>CI/CD</td><td>GitHub Actions — automated APK build & release</td></tr>
+    </table>
+
+    <h2>Build from Source</h2>
+    <p><code>git clone https://github.com/yourusername/locallayer.git<br>cd locallayer<br>./gradlew assembleDebug</code></p>
+
+    <div class="footer">
+      LocalLayer is open source under the MIT License.
+    </div>
+  </div>
+</body>
+</html>
