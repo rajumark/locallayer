@@ -26,7 +26,7 @@ class LayerAccessibilityService : AccessibilityService() {
 
     private lateinit var windowManager: WindowManager
     private var activeOverlays = mutableListOf<View>()
-    private var seenBlocks = mutableMapOf<String, View>()
+    private var pendingKeys = mutableSetOf<String>()
     private var translator: Translator? = null
     private var lastPackage = ""
     private var debounceRunnable: Runnable? = null
@@ -54,7 +54,7 @@ class LayerAccessibilityService : AccessibilityService() {
         lastPackage = pkg
 
         removeAllOverlays()
-        seenBlocks.clear()
+        pendingKeys.clear()
 
         val rootNode = rootInActiveWindow ?: return
         val textBlocks = mutableListOf<Pair<String, Rect>>()
@@ -88,8 +88,8 @@ class LayerAccessibilityService : AccessibilityService() {
         val cacheKey = "$sourceLang:$targetLang:$text"
         val blockKey = "$text:${bounds.left},${bounds.top}"
 
-        if (seenBlocks.containsKey(blockKey)) return
-        seenBlocks[blockKey] = null as View?
+        if (blockKey in pendingKeys) return
+        pendingKeys.add(blockKey)
 
         val cached = translationCache[cacheKey]
         if (cached != null) {
@@ -108,7 +108,7 @@ class LayerAccessibilityService : AccessibilityService() {
     }
 
     private fun drawOverlay(text: String, bounds: Rect, blockKey: String) {
-        if (seenBlocks[blockKey] != null) return
+        if (blockKey !in pendingKeys) return
 
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -142,7 +142,6 @@ class LayerAccessibilityService : AccessibilityService() {
         try {
             windowManager.addView(overlay, params)
             activeOverlays.add(overlay)
-            seenBlocks[blockKey] = overlay
         } catch (_: Exception) {}
     }
 
@@ -173,7 +172,7 @@ class LayerAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         debounceRunnable?.let { handler.removeCallbacks(it) }
         removeAllOverlays()
-        seenBlocks.clear()
+        pendingKeys.clear()
         translator?.close()
         super.onDestroy()
     }
