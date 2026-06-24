@@ -95,22 +95,25 @@ class TranslateViewModel : ViewModel() {
     )
 
     fun setSourceLanguage(language: TranslateLanguageOption) {
-        _uiState.update { it.copy(sourceLanguage = language, error = null) }
+        _uiState.update { it.copy(sourceLanguage = language, modelsReady = false, error = null) }
         if (_setupStep.value == SetupStep.SELECT_SOURCE) {
             _setupStep.value = SetupStep.SELECT_TARGET
+        } else if (_setupStep.value == SetupStep.DONE) {
+            ensureModelsDownloaded()
         }
     }
 
     fun setTargetLanguage(language: TranslateLanguageOption) {
-        _uiState.update { it.copy(targetLanguage = language, error = null) }
+        _uiState.update { it.copy(targetLanguage = language, modelsReady = false, error = null) }
         if (_setupStep.value == SetupStep.SELECT_TARGET) {
             _setupStep.value = SetupStep.DONE
+            ensureModelsDownloaded()
+        } else if (_setupStep.value == SetupStep.DONE) {
             ensureModelsDownloaded()
         }
     }
 
     fun swapLanguages() {
-        val state = _uiState.value
         _uiState.update {
             it.copy(
                 sourceLanguage = it.targetLanguage,
