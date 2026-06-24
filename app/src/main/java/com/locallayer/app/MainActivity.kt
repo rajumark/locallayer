@@ -85,6 +85,7 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
     var showPicker by remember { mutableStateOf(false) }
     var pickerMode by remember { mutableStateOf("") }
     var overlayGranted by remember { mutableStateOf(false) }
+    var serviceEnabled by remember { mutableStateOf(true) }
 
     val overlayLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -100,6 +101,13 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
     LaunchedEffect(state.sourceLanguage.code, state.targetLanguage.code) {
         LayerAccessibilityService.sourceLang = state.sourceLanguage.code
         LayerAccessibilityService.targetLang = state.targetLanguage.code
+    }
+
+    LaunchedEffect(serviceEnabled) {
+        LayerAccessibilityService.enabled = serviceEnabled
+        if (!serviceEnabled) {
+            LayerAccessibilityService.clearOverlays()
+        }
     }
 
     if (setupStep == SetupStep.SELECT_SOURCE) {
@@ -202,6 +210,11 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
                     }
                 )
 
+                MasterToggleCard(
+                    enabled = serviceEnabled,
+                    onToggle = { serviceEnabled = it }
+                )
+
                 StatusCard(
                     modelsReady = state.modelsReady,
                     isDownloading = state.isModelDownloading
@@ -280,6 +293,54 @@ fun PermissionRow(
             checked = granted,
             onCheckedChange = { onClick() }
         )
+    }
+}
+
+@Composable
+fun MasterToggleCard(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (enabled)
+                MaterialTheme.colorScheme.primaryContainer
+            else
+                MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = "Overlay Translation",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (enabled)
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = if (enabled) "Active" else "Paused",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (enabled)
+                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = onToggle
+            )
+        }
     }
 }
 

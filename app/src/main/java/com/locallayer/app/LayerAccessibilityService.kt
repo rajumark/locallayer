@@ -23,7 +23,17 @@ class LayerAccessibilityService : AccessibilityService() {
     companion object {
         var sourceLang = "en"
         var targetLang = "fr"
+        var enabled = true
         val translationCache = mutableMapOf<String, String>()
+
+        private var _service: LayerAccessibilityService? = null
+
+        fun clearOverlays() {
+            _service?.let { s ->
+                s.removeAllOverlays()
+                s.pendingKeys.clear()
+            }
+        }
     }
 
     private lateinit var windowManager: WindowManager
@@ -37,13 +47,18 @@ class LayerAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        _service = this
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (sourceLang == targetLang) return
+        if (!enabled || sourceLang == targetLang) return
 
         val pkg = event.packageName?.toString() ?: return
-        if (pkg.contains("locallayer")) return
+        if (pkg.contains("locallayer")) {
+            removeAllOverlays()
+            pendingKeys.clear()
+            return
+        }
 
         debounceRunnable?.let { handler.removeCallbacks(it) }
         debounceRunnable = Runnable {
@@ -54,12 +69,22 @@ class LayerAccessibilityService : AccessibilityService() {
 
     private fun processScreen(pkg: String) {
         lastPackage = pkg
-        removeAllOverlays()
-        pendingKeys.clear()
 
         val rootNode = rootInActiveWindow ?: return
+        val rootPkg = rootNode.packageName?.toString() ?: ""
+        if (rootPkg.contains("locallayer")) {
+            removeAllOverlays()
+            pendingKeys.clear()
+            return
+        }
+
         val textBlocks = mutableListOf<Pair<String, Rect>>()
         collectTextBlocks(rootNode, textBlocks)
+
+        if (textBlocks.isEmpty() && activeOverlays.isNotEmpty()) return
+
+        removeAllOverlays()
+        pendingKeys.clear()
 
         for ((text, bounds) in textBlocks) {
             showTranslatedOverlay(text, bounds)
@@ -68,7 +93,7 @@ class LayerAccessibilityService : AccessibilityService() {
 
     private fun collectTextBlocks(node: AccessibilityNodeInfo?, result: MutableList<Pair<String, Rect>>) {
         if (node == null) return
-        if (!node.text.isNullOrEmpty() && node.isVisibleToUser && node.text.length > 1) {
+        if (node.childCount == 0 && !node.text.isNullOrEmpty() && node.isVisibleToUser && node.text.length > 1) {
             val originalText = node.text.toString().trim()
             if (originalText.isNotBlank()) {
                 val bounds = Rect()
@@ -173,6 +198,7 @@ class LayerAccessibilityService : AccessibilityService() {
         removeAllOverlays()
         pendingKeys.clear()
         translator?.close()
+        _service = null
         super.onDestroy()
     }
 }
