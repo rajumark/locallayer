@@ -2,8 +2,8 @@ package com.locallayer.app
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.nl.translate.TranslateRemoteModel
@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 enum class SetupStep {
     SELECT_TARGET,
@@ -44,6 +43,8 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _downloadedLanguages = MutableStateFlow<Set<String>>(emptySet())
     val downloadedLanguages: StateFlow<Set<String>> = _downloadedLanguages.asStateFlow()
+
+    private var downloadGeneration = 0
 
     private val _setupStep = MutableStateFlow(SetupStep.SELECT_TARGET)
     val setupStep: StateFlow<SetupStep> = _setupStep.asStateFlow()
@@ -140,77 +141,104 @@ class TranslateViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun ensureModelsDownloaded() {
         downloadJob?.cancel()
-        downloadJob = viewModelScope.launch {
-            val state = _uiState.value
-            val source = state.sourceLanguage.code
-            val target = state.targetLanguage.code
+        downloadGeneration++
+        val gen = downloadGeneration
+        Log.d("TranslateVM", "ensureModelsDownloaded gen=$gen")
+        _uiState.update { it.copy(isModelDownloading = true, error = null) }
 
-            try {
-                val downloadedModels = kotlinx.coroutines.suspendCancellableCoroutine<Set<TranslateRemoteModel>> { cont ->
-                    modelManager.getDownloadedModels(TranslateRemoteModel::class.java)
-                        .addOnSuccessListener { if (cont.isActive) cont.resume(it, null) }
-                        .addOnFailureListener { if (cont.isActive) cont.resume(emptySet(), null) }
+        val state = _uiState.value
+        val source = state.sourceLanguage.code
+        val target = state.targetLanguage.code
+        Log.d("TranslateVM", "source=$source target=$target")
+
+        modelManager.getDownloadedModels(TranslateRemoteModel::class.java)
+            .addOnSuccessListener { models ->
+                Log.d("TranslateVM", "getDownloadedModels success gen=$gen count=${models.size}")
+                if (gen != downloadGeneration) {
+                    Log.d("TranslateVM", "stale gen=$gen current=$downloadGeneration")
+                    return@addOnSuccessListener
                 }
-                val downloadedLangs = downloadedModels.mapNotNull { it.language }.toSet()
-
+                val downloadedLangs = models.mapNotNull { it.language }.toSet()
                 val langsNeeded = listOfNotNull(source, target)
                     .filterNot { it in downloadedLangs }
                     .distinct()
+                Log.d("TranslateVM", "downloadedLangs=$downloadedLangs langsNeeded=$langsNeeded")
 
                 if (langsNeeded.isEmpty()) {
-                    _uiState.update { it.copy(modelsReady = true, error = null) }
-                    return@launch
-                }
-
-                _uiState.update { it.copy(isModelDownloading = true) }
-                val conditions = DownloadConditions.Builder().build()
-
-                for (lang in langsNeeded) {
-                    val model = TranslateRemoteModel.Builder(lang).build()
+                    Log.d("TranslateVM", "no langs needed, models ready")
                     _uiState.update {
-                        it.copy(
-                            downloadProgress = if (langsNeeded.size > 1)
-                                "Downloading $lang model (${langsNeeded.indexOf(lang) + 1}/${langsNeeded.size})..."
-                            else
-                                "Downloading $lang model...",
-                            downloadProgressValue = 0f,
-                            downloadLanguage = lang
-                        )
+                        it.copy(modelsReady = true, isModelDownloading = false)
                     }
-
-                    kotlinx.coroutines.suspendCancellableCoroutine<Unit> { continuation ->
-                        modelManager.download(model, conditions)
-                            .addOnSuccessListener {
-                                if (continuation.isActive) continuation.resume(Unit, null)
-                            }
-                            .addOnFailureListener { e ->
-                                if (continuation.isActive) {
-                                    continuation.resumeWith(Result.failure(e))
-                                }
-                            }
-                    }
+                    return@addOnSuccessListener
                 }
 
+                downloadModels(langsNeeded, gen)
+            }
+            .addOnFailureListener { e ->
+                Log.d("TranslateVM", "getDownloadedModels failed gen=$gen: $e")
+                if (gen != downloadGeneration) {
+                    Log.d("TranslateVM", "stale gen=$gen current=$downloadGeneration")
+                    return@addOnFailureListener
+                }
+                downloadModels(listOfNotNull(source, target).distinct(), gen)
+            }
+    }
+
+    private fun downloadModels(langsNeeded: List<String>, gen: Int) {
+        Log.d("TranslateVM", "downloadModels gen=$gen langs=$langsNeeded")
+        val conditions = DownloadConditions.Builder().build()
+
+        fun downloadNext(index: Int) {
+            Log.d("TranslateVM", "downloadNext gen=$gen index=$index total=${langsNeeded.size}")
+            if (gen != downloadGeneration) {
+                Log.d("TranslateVM", "stale gen=$gen current=$downloadGeneration")
+                return
+            }
+            if (index >= langsNeeded.size) {
+                Log.d("TranslateVM", "all downloads complete gen=$gen")
                 refreshDownloadedModels()
                 _uiState.update {
                     it.copy(
                         modelsReady = true,
                         isModelDownloading = false,
                         downloadProgress = "",
-                        downloadProgressValue = 0f,
                         downloadLanguage = ""
                     )
                 }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isModelDownloading = false,
-                        downloadProgressValue = 0f,
-                        error = e.localizedMessage ?: "Model download failed"
-                    )
-                }
+                return
             }
+
+            val lang = langsNeeded[index]
+            val total = langsNeeded.size
+            _uiState.update {
+                it.copy(
+                    downloadProgress = if (total > 1) "Downloading $lang model (${index + 1}/$total)..."
+                        else "Downloading $lang model...",
+                    downloadLanguage = lang
+                )
+            }
+
+            val model = TranslateRemoteModel.Builder(lang).build()
+            Log.d("TranslateVM", "starting download for $lang gen=$gen")
+            modelManager.download(model, conditions)
+                .addOnSuccessListener {
+                    Log.d("TranslateVM", "download success $lang gen=$gen")
+                    if (gen == downloadGeneration) downloadNext(index + 1)
+                }
+                .addOnFailureListener { e ->
+                    Log.d("TranslateVM", "download failed $lang gen=$gen: $e")
+                    if (gen == downloadGeneration) {
+                        _uiState.update {
+                            it.copy(
+                                isModelDownloading = false,
+                                error = "Failed to download $lang: ${e.localizedMessage ?: "unknown error"}"
+                            )
+                        }
+                    }
+                }
         }
+
+        downloadNext(0)
     }
 
     override fun onCleared() {
