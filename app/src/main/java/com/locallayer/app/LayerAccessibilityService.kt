@@ -1,6 +1,7 @@
 package com.locallayer.app
 
 import android.accessibilityservice.AccessibilityService
+import android.content.res.Resources
 import android.graphics.Color
 import android.graphics.Rect
 import android.os.Build
@@ -37,10 +38,13 @@ class LayerAccessibilityService : AccessibilityService() {
     private var translator: Translator? = null
     private var debounceRunnable: Runnable? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var statusBarHeight = 0
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        statusBarHeight = if (resourceId > 0) resources.getDimensionPixelSize(resourceId) else 0
         _service = this
     }
 
@@ -48,10 +52,7 @@ class LayerAccessibilityService : AccessibilityService() {
         if (!enabled || sourceLang == targetLang) return
 
         val pkg = event.packageName?.toString() ?: return
-        if (pkg.contains("locallayer")) {
-            removeAllOverlays()
-            return
-        }
+        if (pkg.contains("locallayer")) return
 
         debounceRunnable?.let { handler.removeCallbacks(it) }
         debounceRunnable = Runnable {
@@ -63,10 +64,7 @@ class LayerAccessibilityService : AccessibilityService() {
     private fun processScreen() {
         val rootNode = rootInActiveWindow ?: return
         val rootPkg = rootNode.packageName?.toString() ?: ""
-        if (rootPkg.contains("locallayer")) {
-            removeAllOverlays()
-            return
-        }
+        if (rootPkg.contains("locallayer")) return
 
         val textBlocks = mutableListOf<Pair<String, Rect>>()
         collectTextBlocks(rootNode, textBlocks)
@@ -151,7 +149,7 @@ class LayerAccessibilityService : AccessibilityService() {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = bounds.left
-            y = bounds.top
+            y = bounds.top - statusBarHeight
         }
 
         val overlay = TextView(this).apply {
