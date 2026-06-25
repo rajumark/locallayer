@@ -101,6 +101,13 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
         LayerAccessibilityService.targetLang = state.targetLanguage.code
     }
 
+    LaunchedEffect(state.modelsReady) {
+        LayerAccessibilityService.modelsReady = state.modelsReady
+        if (!state.modelsReady) {
+            LayerAccessibilityService.clearOverlays()
+        }
+    }
+
     LaunchedEffect(serviceEnabled) {
         LayerAccessibilityService.enabled = serviceEnabled
         if (!serviceEnabled) {

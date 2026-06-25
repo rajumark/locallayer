@@ -23,6 +23,7 @@ class LayerAccessibilityService : AccessibilityService() {
         var sourceLang = "en"
         var targetLang = "fr"
         var enabled = true
+        var modelsReady = false
         val translationCache = mutableMapOf<String, String>()
 
         private var _service: LayerAccessibilityService? = null
@@ -49,7 +50,7 @@ class LayerAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (!enabled || sourceLang == targetLang) return
+        if (!enabled || !modelsReady || sourceLang == targetLang) return
 
         val pkg = event.packageName?.toString() ?: return
         if (pkg.contains("locallayer")) return
