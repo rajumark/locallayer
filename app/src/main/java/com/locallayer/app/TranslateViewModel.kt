@@ -1,6 +1,8 @@
 package com.locallayer.app
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.common.model.RemoteModelManager
@@ -14,7 +16,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 enum class SetupStep {
-    SELECT_SOURCE,
     SELECT_TARGET,
     DONE
 }
@@ -26,7 +27,7 @@ data class TranslateLanguageOption(
 
 data class TranslateUiState(
     val sourceLanguage: TranslateLanguageOption = TranslateLanguageOption("en", "English"),
-    val targetLanguage: TranslateLanguageOption = TranslateLanguageOption("fr", "French"),
+    val targetLanguage: TranslateLanguageOption = TranslateLanguageOption("hi", "Hindi"),
     val modelsReady: Boolean = false,
     val isModelDownloading: Boolean = false,
     val downloadProgress: String = "",
@@ -36,7 +37,7 @@ data class TranslateUiState(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class TranslateViewModel : ViewModel() {
+class TranslateViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(TranslateUiState())
     val uiState: StateFlow<TranslateUiState> = _uiState.asStateFlow()
@@ -44,22 +45,12 @@ class TranslateViewModel : ViewModel() {
     private val _downloadedLanguages = MutableStateFlow<Set<String>>(emptySet())
     val downloadedLanguages: StateFlow<Set<String>> = _downloadedLanguages.asStateFlow()
 
-    private val _setupStep = MutableStateFlow(SetupStep.SELECT_SOURCE)
+    private val _setupStep = MutableStateFlow(SetupStep.SELECT_TARGET)
     val setupStep: StateFlow<SetupStep> = _setupStep.asStateFlow()
 
     private val modelManager = RemoteModelManager.getInstance()
     private var downloadJob: Job? = null
-
-    init {
-        refreshDownloadedModels()
-    }
-
-    fun refreshDownloadedModels() {
-        modelManager.getDownloadedModels(TranslateRemoteModel::class.java)
-            .addOnSuccessListener { models ->
-                _downloadedLanguages.value = models.mapNotNull { it.language }.toSet()
-            }
-    }
+    private val prefs = application.getSharedPreferences("locallayer_prefs", Context.MODE_PRIVATE)
 
     val languages = listOf(
         TranslateLanguageOption("ar", "Arabic"),
@@ -68,7 +59,6 @@ class TranslateViewModel : ViewModel() {
         TranslateLanguageOption("cs", "Czech"),
         TranslateLanguageOption("da", "Danish"),
         TranslateLanguageOption("nl", "Dutch"),
-        TranslateLanguageOption("en", "English"),
         TranslateLanguageOption("fi", "Finnish"),
         TranslateLanguageOption("fr", "French"),
         TranslateLanguageOption("de", "German"),
@@ -94,23 +84,41 @@ class TranslateViewModel : ViewModel() {
         TranslateLanguageOption("vi", "Vietnamese")
     )
 
-    fun setSourceLanguage(language: TranslateLanguageOption) {
-        _uiState.update { it.copy(sourceLanguage = language, modelsReady = false, error = null) }
-        if (_setupStep.value == SetupStep.SELECT_SOURCE) {
-            _setupStep.value = SetupStep.SELECT_TARGET
-        } else if (_setupStep.value == SetupStep.DONE) {
+    init {
+        val savedTarget = prefs.getString("target_language", null)
+        if (savedTarget != null) {
+            val sourceCode = prefs.getString("source_language", "en") ?: "en"
+            val sourceLang = languages.find { it.code == sourceCode } ?: languages.first()
+            val targetLang = languages.find { it.code == savedTarget } ?: languages.first()
+            _uiState.update { it.copy(sourceLanguage = sourceLang, targetLanguage = targetLang) }
+            _setupStep.value = SetupStep.DONE
             ensureModelsDownloaded()
         }
+        refreshDownloadedModels()
+    }
+
+    fun refreshDownloadedModels() {
+        modelManager.getDownloadedModels(TranslateRemoteModel::class.java)
+            .addOnSuccessListener { models ->
+                _downloadedLanguages.value = models.mapNotNull { it.language }.toSet()
+            }
+    }
+
+    fun setSourceLanguage(language: TranslateLanguageOption) {
+        _uiState.update { it.copy(sourceLanguage = language, modelsReady = false, error = null) }
+        prefs.edit().putString("source_language", language.code).apply()
+        LayerAccessibilityService.translationCache.clear()
+        ensureModelsDownloaded()
     }
 
     fun setTargetLanguage(language: TranslateLanguageOption) {
         _uiState.update { it.copy(targetLanguage = language, modelsReady = false, error = null) }
+        prefs.edit().putString("target_language", language.code).apply()
+        LayerAccessibilityService.translationCache.clear()
         if (_setupStep.value == SetupStep.SELECT_TARGET) {
             _setupStep.value = SetupStep.DONE
-            ensureModelsDownloaded()
-        } else if (_setupStep.value == SetupStep.DONE) {
-            ensureModelsDownloaded()
         }
+        ensureModelsDownloaded()
     }
 
     fun swapLanguages() {
@@ -122,6 +130,10 @@ class TranslateViewModel : ViewModel() {
                 error = null
             )
         }
+        prefs.edit()
+            .putString("source_language", _uiState.value.targetLanguage.code)
+            .putString("target_language", _uiState.value.sourceLanguage.code)
+            .apply()
         LayerAccessibilityService.translationCache.clear()
         ensureModelsDownloaded()
     }

@@ -28,9 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -110,20 +108,10 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
         }
     }
 
-    if (setupStep == SetupStep.SELECT_SOURCE) {
-        LanguagePickerScreen(
-            title = "Select source language",
-            languages = viewModel.languages,
-            downloadedLanguages = downloadedLanguages,
-            showBack = false,
-            onSelected = viewModel::setSourceLanguage
-        )
-        return
-    }
     if (setupStep == SetupStep.SELECT_TARGET) {
         LanguagePickerScreen(
-            title = "Select target language",
-            languages = viewModel.languages,
+            title = "Select language to translate to",
+            languages = viewModel.languages.filter { it.code != "en" },
             downloadedLanguages = downloadedLanguages,
             showBack = false,
             onSelected = viewModel::setTargetLanguage
@@ -138,7 +126,7 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
             downloadedLanguages = downloadedLanguages,
             showBack = true,
             onSelected = { lang ->
-                if (pickerMode == "From") viewModel.setSourceLanguage(lang)
+                if (pickerMode == "Source") viewModel.setSourceLanguage(lang)
                 else viewModel.setTargetLanguage(lang)
                 showPicker = false
             },
@@ -178,22 +166,26 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
                 .imePadding()
                 .navigationBarsPadding()
         ) {
-            LanguageSelectorRow(
-                sourceLanguage = state.sourceLanguage,
-                targetLanguage = state.targetLanguage,
-                onSourceClick = { showPicker = true; pickerMode = "From" },
-                onTargetClick = { showPicker = true; pickerMode = "To" },
-                onSwap = viewModel::swapLanguages,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                MasterToggleCard(
+                    enabled = serviceEnabled,
+                    onToggle = { serviceEnabled = it }
+                )
+
+                LanguageSelectorRow(
+                    sourceLanguage = state.sourceLanguage,
+                    targetLanguage = state.targetLanguage,
+                    onSourceClick = { showPicker = true; pickerMode = "Source" },
+                    onTargetClick = { showPicker = true; pickerMode = "Target" },
+                    onSwap = viewModel::swapLanguages
+                )
+
                 PermissionCard(
                     overlayGranted = overlayGranted,
                     onRequestOverlay = {
@@ -208,11 +200,6 @@ fun LayerApp(viewModel: TranslateViewModel = viewModel()) {
                     onOpenAccessibility = {
                         context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     }
-                )
-
-                MasterToggleCard(
-                    enabled = serviceEnabled,
-                    onToggle = { serviceEnabled = it }
                 )
 
                 StatusCard(
@@ -455,11 +442,10 @@ fun LanguageSelectorRow(
     targetLanguage: TranslateLanguageOption,
     onSourceClick: () -> Unit,
     onTargetClick: () -> Unit,
-    onSwap: () -> Unit,
-    modifier: Modifier = Modifier
+    onSwap: () -> Unit
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
